@@ -1,6 +1,6 @@
 import {promisePool} from '../../database/db';
 import CustomError from '../../classes/CustomError';
-import {ResultSetHeader, RowDataPacket} from 'mysql2';
+import {ResultSetHeader} from 'mysql2';
 import {GetUser, PostUser, PutUser, User} from '../../interfaces/User';
 
 const getAllUsers = async (): Promise<User[]> => {
@@ -33,6 +33,17 @@ const getUser = async (userId: string): Promise<User> => {
 
 // TODO: create addUser function
 
+const addUser = async (user: PostUser) => {
+  const [headers] = await promisePool.execute<ResultSetHeader>(
+    'INSERT INTO sssf_user (user_name, email, password) VALUES (?, ?, ?)',
+    [user.user_name, user.email, user.password]
+  );
+  if (headers.affectedRows === 0) {
+    throw new CustomError('User not added', 304);
+  }
+  return headers.insertId;
+};
+
 const updateUser = async (data: PutUser, userId: number): Promise<boolean> => {
   const sql = promisePool.format('UPDATE sssf_user SET ? WHERE user_id = ?;', [
     data,
@@ -46,6 +57,17 @@ const updateUser = async (data: PutUser, userId: number): Promise<boolean> => {
 };
 
 // TODO: create deleteUser function
+
+const deleteUser = async (id: number) => {
+  const [headers] = await promisePool.execute<ResultSetHeader>(
+    'DELETE FROM sssf_user WHERE user_id = ?',
+    [id]
+  );
+  if (headers.affectedRows === 0) {
+    throw new CustomError('User not found', 404);
+  }
+  return true;
+};
 
 const getUserLogin = async (email: string): Promise<User> => {
   const [rows] = await promisePool.execute<GetUser[]>(

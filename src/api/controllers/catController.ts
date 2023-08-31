@@ -34,7 +34,7 @@ const catGet = async (req: Request, res: Response, next: NextFunction) => {
   }
 
   try {
-    const cat = await getCat(req.params.id);
+    const cat = await getCat(parseInt(req.params.id));
     res.json(cat);
   } catch (error) {
     next(error);
@@ -47,6 +47,50 @@ const catGet = async (req: Request, res: Response, next: NextFunction) => {
 // catPost should use req.file to get filename
 // catPost should use res.locals.coords to get lat and lng (see middlewares.ts)
 // catPost should use req.user to get user_id and role
+
+const catPost = async (
+  req: Request<{}, {}, PostCat>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const errors = validationResult(req.body);
+
+    if (!errors.isEmpty()) {
+      const messages = errors
+        .array()
+        .map((error) => `${error.msg}: ${error.param}`)
+        .join(', ');
+      throw new CustomError(messages, 400);
+    }
+
+    if (!req.file) {
+      next(new CustomError('No file uploaded', 400));
+      return;
+    }
+    const filename = req.file.filename;
+    const [lat, lng] = res.locals.coords;
+    const {user_id, role} = req.user as User;
+
+    const catData = {
+      ...req.body,
+      filename,
+      lat,
+      lng,
+      user_id,
+      role,
+    };
+
+    const catID = await addCat(catData);
+    const message: MessageResponse = {
+      message: 'Cat added',
+      id: catID,
+    };
+    res.json(message);
+  } catch (error) {
+    next(error);
+  }
+};
 
 const catPut = async (
   req: Request<{id: string}, {}, Cat>,
@@ -88,5 +132,36 @@ const catPut = async (
 // TODO: create catDelete function to delete cat
 // catDelete should use deleteCat function from catModel
 // catDelete should use validationResult to validate req.params.id
+
+const catDelete = async (
+  req: Request<{id: string}, {}, {}>,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const id = parseInt(req.params.id);
+    const errors = validationResult(req);
+
+    if (!errors.isEmpty()) {
+      const messages = errors
+        .array()
+        .map((error) => `${error.msg}: ${error.param}`)
+        .join(', ');
+      throw new CustomError(messages, 400);
+    }
+
+    const result = await deleteCat(id);
+
+    if (result) {
+      const message: MessageResponse = {
+        message: 'Category deleted',
+        id,
+      };
+      res.json(message);
+    }
+  } catch (error) {
+    next(error);
+  }
+};
 
 export {catListGet, catGet, catPost, catPut, catDelete};

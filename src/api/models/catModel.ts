@@ -1,6 +1,6 @@
 import {promisePool} from '../../database/db';
 import CustomError from '../../classes/CustomError';
-import {ResultSetHeader, RowDataPacket} from 'mysql2';
+import {ResultSetHeader} from 'mysql2';
 import {Cat, GetCat, PostCat, PutCat} from '../../interfaces/Cat';
 
 const getAllCats = async (): Promise<Cat[]> => {
@@ -25,6 +25,17 @@ const getAllCats = async (): Promise<Cat[]> => {
 };
 
 // TODO: create getCat function to get single cat
+
+const getCat = async (id: number) => {
+  const [rows] = await promisePool.execute<GetCat[]>(
+    'SELECT * FROM sssf_cat WHERE cat_id = ?',
+    [id]
+  );
+  if (rows.length === 0) {
+    throw new CustomError('No cats found', 404);
+  }
+  return rows[0] as Cat;
+};
 
 const addCat = async (data: PostCat): Promise<number> => {
   const [headers] = await promisePool.execute<ResultSetHeader>(
@@ -52,6 +63,42 @@ const addCat = async (data: PostCat): Promise<number> => {
 // TODO: create updateCat function to update single cat
 // if role is admin, update any cat
 // if role is user, update only cats owned by user
+
+const updateCat = async (
+  cat: PutCat,
+  id: number,
+  userId: number,
+  role: string
+) => {
+  const sql = promisePool.format(
+    `
+    UPDATE sssf_cat 
+    SET ?
+    WHERE cat_id = ?
+    `,
+    [cat, id]
+  );
+  if (role === 'admin') {
+    const [headers] = await promisePool.execute<ResultSetHeader>(sql);
+    if (headers.affectedRows === 0) {
+      throw new CustomError('No cats found', 404);
+    }
+  } else if (role === 'user') {
+    const catToUpdate = await getCat(id);
+    if (catToUpdate.owner === userId) {
+      const [headers] = await promisePool.execute<ResultSetHeader>(sql);
+      if (headers.affectedRows === 0) {
+        throw new CustomError('No cats found', 404);
+      }
+    } else {
+      throw new CustomError(
+        "You don't have permission to update this cat",
+        403
+      );
+    }
+  }
+  return true;
+};
 
 const deleteCat = async (catId: number): Promise<boolean> => {
   const [headers] = await promisePool.execute<ResultSetHeader>(
